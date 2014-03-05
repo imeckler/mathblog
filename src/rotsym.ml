@@ -103,5 +103,70 @@ module Continuous_path = struct
     |> run
 end
 
+module Graph_split = struct
+  let bowtie =
+    let gph = Graph.empty () in
+    let ([|a;b;c;d;e|], gph') = Graph.add_nodes (Array.create ~len:5 Draw.Color.black) gph in
+    let open Graph.Change in
+    Graph.change [|
+      Add_arc (a, b, ());
+      Add_arc (b, c, ());
+      Add_arc (c, a, ());
+
+      Add_arc (c, d, ());
+      Add_arc (d, e, ());
+      Add_arc (e, c, ());
+    |] gph'
+
+  module Vector = struct
+    let scale c (x, y) = (c *. x, c *. y)
+
+    let add (x1, y1) (x2, y2) = (x1 +. x2, y1 +. y2)
+
+    let sub (x1, y1) (x2, y2) = (x1 -. x2, y1 -. y2)
+
+    let norm (x, y) = sqrt (x ** 2. +. y ** 2.)
+  end
+
+  let charge_accel p1 p2 =
+    let charge_constant = 1. in
+    let d = Vector.sub p2 p1 in
+    Vector.scale (charge_constant /. (Vector.norm d ** 2.)) d
+
+  let spring_accel p1 p2 : (float * float) =
+    let spring_constant = 1. in
+    Vector.scale spring_constant (Vector.sub p2 p1)
+
+  let draw_graph g =
+    let posg = Graph.map_nodes g ~f:(fun _ -> Frp.Behavior.return (1.,1.)) in
+    let get_pos v : (float * float) = Frp.Behavior.peek (Graph.get_exn v posg) in
+
+    let spring_accels p0 vs =
+      Array.fold vs ~init:(0., 0.) ~f:(fun acc (v2, _) -> 
+        Vector.add acc (spring_accel p0 (get_pos v2))
+      )
+    in
+
+    let update () =
+      Graph.iter_nodes ~f:(fun v1 posb1 ->
+        let pos1 = Frp.Behavior.peek posb1 in
+        let charge_acc = 
+          Graph.fold_nodes posg ~init:(0., 0.) ~f:(fun acc v2 posb2 ->
+            if v1 <> v2
+            then Vector.add acc (charge_accel pos1 (Frp.Behavior.peek posb2))
+            else acc
+          )
+        in
+        Frp.Behavior.trigger posb1 (
+          Vector.add charge_acc (
+          Vector.add (spring_accels pos1 (Graph.successors_exn v1 posg))
+                     (spring_accels pos1 (Graph.predecessors_exn v1 posg))
+          )
+        )
+      )
+    in
+    ()
+end
+
 let _ = Continuous_path.mk ()
 

@@ -9,8 +9,8 @@ let rotating_ngon w h n =
   let open Draw in
   let w, h   = float_of_int w, float_of_int h in
   let radius = min w h /. 4. in
-  let center = {Point. x = w /. 2.; y = h /. 2.} in
-  let p0     = {Point. x = w /. 2.; y = (h /. 2.) -. radius} in
+  let center = (w /. 2., h /. 2.) in
+  let p0     = (w /. 2., (h /. 2.) -. radius) in
   let theta  = 360. /. float_of_int n in
 
   let ngon = 
@@ -36,8 +36,9 @@ let rotating_ngon w h n =
     |> Frp.Behavior.map ~f:Angle.of_degrees
   in
 
-  let arc =  let open Frp.Behavior in
-    path ~anchor:(return Point.({p0 with y = p0.y -. 40.}))
+  let arc = let open Frp.Behavior in
+    path
+      ~anchor:(let (x, y) = p0 in return (x, y -. 40.))
       ~props:[|
         return (Property.stroke Color.red 4);
         return (Property.fill Color.({red with alpha = 0.}))
@@ -53,7 +54,7 @@ let rotating_ngon w h n =
     let theta = Angle.of_degrees theta in
     let label_pos i = let open Draw.Point in
       Frp.Behavior.map angle ~f:(fun a -> let open Angle in
-        rotate ~about:center {p0 with y = p0.y -. 20.} (a + (float_of_int i * theta))
+        rotate ~about:center (let (x,y) = p0 in (x, y -. 20.)) (a + (float_of_int i * theta))
       )
     in
     Array.map (range 1 n)
@@ -87,15 +88,22 @@ module Continuous_path = struct
     let path_anim slider_val =
       let open Frp.Behavior in
       let open Draw in let open Point in let open Segment in
-      path
+      path_string
+        ~props:[|
+          return Property.(fill Color.({red with alpha = 0.}));
+          return Property.(stroke Color.black 4)
+        |]
+        ~mask:(map slider_val ~f:(fun x -> (0., x ** 2.)))
+        (return "M15.514,227.511c0,0-14.993-122.591,109.361-59.091 c124.356,63.501,157.872,22.049,125.238-49.389c-32.632-71.439-127.305-15.875-111.719,108.479 c15.586,124.355,246.658,35.278,246.658,35.278")
+ (*     path
         ~props:[|
           return Property.(fill Color.({red with alpha = 0.}));
           return Property.(stroke Color.black 2)
         |]
-        ~anchor:(return {x = 5.; y = 5.})
+        ~anchor:(return (5., 5.))
         ~mask:(map slider_val ~f:(fun x -> (0., x ** 2.)))
-        (return [| line_to {x = 100.; y = 100.}; line_to {x = 200.; y = 100.} |])
-(*       |> fill   red *)
+        (return [| line_to (100., 100.); line_to (200., 100.) |])
+       |> fill   red *)
     in
     let open Widget in
     create ~width:400 ~height:400 container path_anim
@@ -129,17 +137,28 @@ module Graph_split = struct
   end
 
   let charge_accel p1 p2 =
-    let charge_constant = 1. in
-    let d = Vector.sub p2 p1 in
-    Vector.scale (charge_constant /. (Vector.norm d ** 2.)) d
+    if p1 = p2
+    then (1., 1.) 
+    else
+      let charge_constant = 1. in
+      let d = Vector.sub p2 p1 in
+      Vector.scale (charge_constant /. (Vector.norm d ** 2.)) d
 
   let spring_accel p1 p2 : (float * float) =
     let spring_constant = 1. in
     Vector.scale spring_constant (Vector.sub p2 p1)
 
+  let side_force_x w h c p (a, b) =
+    -. c *. (atan ((b -. h) /. (a -. p)) -. atan (b /. (a -. p)))
+
+  let side_force_y w h c p (a, b) =
+    let f y = log (a**2. -. (2. *. a *. p) +. b**2. -. (2. *. b *. y) +. p**2. +. y**2.) in
+    let f y = log ((a -. p)**2. +. (b -. y)**2.) in
+    -. (c /. 2.) *. (f h -. f 0.)
+
   let draw_graph g =
     let posg = Graph.map_nodes g ~f:(fun _ -> Frp.Behavior.return (1.,1.)) in
-    let get_pos v : (float * float) = Frp.Behavior.peek (Graph.get_exn v posg) in
+    let get_pos v = Frp.Behavior.peek (Graph.get_exn v posg) in
 
     let spring_accels p0 vs =
       Array.fold vs ~init:(0., 0.) ~f:(fun acc (v2, _) -> 
@@ -148,7 +167,7 @@ module Graph_split = struct
     in
 
     let update () =
-      Graph.iter_nodes ~f:(fun v1 posb1 ->
+      Graph.iter_nodes posg ~f:(fun v1 posb1 ->
         let pos1 = Frp.Behavior.peek posb1 in
         let charge_acc = 
           Graph.fold_nodes posg ~init:(0., 0.) ~f:(fun acc v2 posb2 ->
@@ -165,8 +184,35 @@ module Graph_split = struct
         )
       )
     in
-    ()
+
+    let drawing = let open Draw in
+      let circs = 
+        Graph.fold_nodes posg ~init:[] ~f:(fun cs v pos_v ->
+          circle (Frp.Behavior.return 10.) pos_v
+          :: cs
+        ) |> Array.of_list
+      in
+      let edges =
+        Graph.fold_arcs posg ~init:[] ~f:(fun es v1 v2 _ ->
+          path ~anchor:(Graph.get_exn v1 posg)
+            (Frp.Behavior.map (Graph.get_exn v2 posg) ~f:(fun p -> [|Segment.move_to p|]))
+          :: es
+        ) |> Array.of_list
+      in
+      pictures (Array.append circs edges)
+    in
+    begin
+      let (elt, sub) = Draw.render drawing in
+      let svg        = Jq.Dom.svg_node "svg" [| "width", "400"; "height", "600" |] in
+      Jq.Dom.append svg elt;
+      Frp.Stream.(iter (ticks 30.) ~f:(fun _ -> update ())) |> ignore;
+      match Jq.to_dom_node (Jq.jq "#graphanim") with
+        | None   -> print "ho"
+        | Some t -> Jq.Dom.append t svg
+    end
 end
+
+(* let () = Graph_split.(draw_graph bowtie) *)
 
 let _ = Continuous_path.mk ()
 

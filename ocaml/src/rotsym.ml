@@ -74,6 +74,42 @@ let () =
     | None -> print "hi"
     | Some t -> Jq.Dom.append t svg
 
+module Point_in_plane = struct
+  let (init_x, init_y) = (50, 100)
+
+  let point_in_plane () =
+    let container = Jq.jq "#point-in-plane" in
+    let w, h      = Jq.width container, Jq.height container in
+    let open Draw in
+
+    let plane_anim pt = let open Frp.Behavior in
+      let props = [|
+          return (Property.stroke (Color.of_rgb ~r:0xEE ~g:0xEE ~b:0xEE ()) 2);
+          return (Property.fill Color.none)
+        |]
+      in
+      let x_tracker =
+        path ~props ~anchor:(map pt ~f:(fun (x, y) -> (float_of_int x, 0.)))
+          (return [|Segment.line_to (0., float_of_int h)|])
+      in
+      let y_tracker =
+        path ~props ~anchor:(map pt ~f:(fun (x, y) -> (0., float_of_int y)))
+          (return [|Segment.line_to (float_of_int w, 0.)|])
+      in
+      let circ = 
+        circle ~props:[|return (Property.fill Color.black)|] (return 5.)
+          (map ~f:(Arrow.both float_of_int) pt)
+      in
+      pictures [| x_tracker; y_tracker; circ |]
+    in
+    let open Widget in
+    create ~width:400 ~height:400 container plane_anim
+    +> Control.drag_point (init_x, init_y)
+    |> run
+end
+
+let () = ignore (Point_in_plane.point_in_plane ())
+
 module Continuous_path = struct
 
   let path_svg = Jq.Dom.svg_node "path"

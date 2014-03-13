@@ -1,4 +1,6 @@
-Date: 2/20/13
+---
+title: Rotationally Symmetric Shapes
+---
 
 Some shapes have **rotational symmetry**. By a rotational symmetry,
 I mean an angle that the shape can be rotated by to get the same shape
@@ -13,9 +15,12 @@ More generally, a regular $n$-gon
 has $n$ rotational symmetries. 
 
 What about a shape with infinitely many rotational symmetries?
-**Mention circle**
+There is a simple example of such a shape that shouln't be too
+difficult to think of, but I'll let you try and think of it yourself.
 
-Now if we want to solve this problem, we have to make a few things precise.
+Now, if we want to find out what kinds of shapes have infinitely many
+rotational symmetries, we have to make a few things precise:
+
 - What do we mean by shape?
 - What exactly is a rotational symmetry?
 
@@ -23,9 +28,15 @@ Now if we want to solve this problem, we have to make a few things precise.
 
 It is a bit difficult to say what the defining characteristics of the intuitive
 notion of a "shape" are. Here are some that seem reasonable:
+
 - It can be described by a collection of points in the plane
 - It shouldn't "go on forever", that is, I should be able to draw a box
   around it.
 - It shouldn't have any "discontinuities".
 
+Let's fix some notation. First off, $\mathbb{R}^2$ refers to the collection
+of points $(x, y)$, where $x$ and $y$ are real numbers.
+Think of it as specifying a point in the plane, as below.
+
+<div id='point-in-plane'></div>
 

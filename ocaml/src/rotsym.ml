@@ -268,7 +268,17 @@ module Graph_split = struct
     end
 end
 
-(* let () = Graph_split.(draw_graph bowtie) *)
+let () = Graph_split.(draw_graph bowtie)
 
-let _ = Continuous_path.mk ()
+module Compactness = struct
+  let w, h = 400., 400.
+
+  let mk () = let open Draw in let open Frp.Behavior in
+    let circ = circle (return (w /. 3.)) (return (w /. 2., h/. 2.))
+      ~props:[|return (Property.stroke Color.black 2)|] 
+    in
+    ()
+end
+
+(* let _ = Continuous_path.mk () *)
 

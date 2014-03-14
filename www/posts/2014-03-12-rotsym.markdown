@@ -19,8 +19,8 @@ has $n$ rotational symmetries.
 What about a shape with infinitely many rotational symmetries?
 That is, a shape which can be rotated by infinitely many distinct angles
 to get the same shape.
-There is a simple example of such a shape that shouln't be too
-difficult to think of, but I'll let you try and think of it yourself.
+There is a simple example of such a shape that shouldn't be too
+difficult to think of, so I'll let you try and think of it yourself.
 
 Now, if we want to find out what kinds of shapes have infinitely many
 rotational symmetries, we have to make a few things precise:
@@ -74,12 +74,41 @@ Think of it as specifying a point in the plane, as below.
 
 Let's try and translate our intuitive properties of shapes into precise ones.
 
-1. A shape is a set of points $S$ (that is, $S \subseteq \mathbb{R}^2$) such that
+#### Definition:
+1. A **shape** is a nonempty set of points $S$ (that is, $S \subseteq \mathbb{R}^2$) such that
 2. for some real numbers $x_{\text{left}}, x_{\text{right}}, y_{\text{low}}$
    and $y_{\text{high}}$, we have that 
    $S \subseteq [x_{\text{left}}, x_{\text{right}}] \times [y_{\text{low}}, y_{\text{high}}]$
 
-Let us stop to ponder 2 for a moment. It is saying that there is some rectangle
-for which every point in $S$ is in the rectangle. <!-- TODO: Elaborate -->
+<div class='well'>
+  Let us stop to think about what 2 says for a moment. What is
+  $[x_{\text{left}}, x_{\text{right}}] \times [y_{\text{low}}, y_{\text{high}}]$?
+  It is the set of points $(x, y)$ with $x$ between $x_{\text{left}}$ and $x_{\text{right}}$
+  and with $y$ between $y_{\text{low}}$ and $y_{\text{high}}$. Such a set of
+  points is simply a rectangle,
+  oo it really is a faitful rendering of our condition that we must be able to
+  draw a box around a shape.
+</div>
 
-The only remaining thing to translate is 3. To be completely honest, I can't
+The only remaining thing to translate is 3. 
+This is something which is tough to give an intuitive justification for.
+
+# Rotational symmetry
+
+# Pudding
+
+With our definitions in hand, we can begin to attack the problem.
+
+Let $S$ be a shape with infinitely many rotational symmetries.
+What do we know about $S$? Well, it's nonempty, so there
+is some point $p$ in $S$. We also know that our shape actually contains
+infinitely many points since we can rotate $p$ by infinitely many angles
+to get more points in $S$. Let's say $A$ is the set of points in $S$ that
+$p$ gets sent to under some rotational symmetry.
+
+One thing to notice about $A$ is that every point in $A$ lies on the same
+circle centered at the origin (i.e., centered at the point $(0,0)$).
+This is because $p$ lies on some circle and by rotating $p$, we stay on
+that circle.
+
+<div id='graph'></div>

@@ -2,19 +2,23 @@
 title: Rotationally Symmetric Shapes
 ---
 
+<script type='text/javascript' src='/js/rotsym.js' defer='defer'></script>
+
 Some shapes have **rotational symmetry**. By a rotational symmetry,
 I mean an angle that the shape can be rotated by to get the same shape
 (we will make this more precise later).
 For example, consider a
 square. You can rotate it by four different angles to get the same shape.
 
-<div id="square" class="illustration"></div>
+<div id="ngon" class="illustration"></div>
 
 More generally, a regular $n$-gon 
 (a shape with $n$ sides of the same length and $n$ equal angles)
 has $n$ rotational symmetries. 
 
 What about a shape with infinitely many rotational symmetries?
+That is, a shape which can be rotated by infinitely many distinct angles
+to get the same shape.
 There is a simple example of such a shape that shouln't be too
 difficult to think of, but I'll let you try and think of it yourself.
 
@@ -24,19 +28,58 @@ rotational symmetries, we have to make a few things precise:
 - What do we mean by shape?
 - What exactly is a rotational symmetry?
 
-# Shape
+Before we get started, let me explain a bit about the format of this blog and
+this post. For readers who don't get into this kind of thing often, there will
+be explanations of notation and some ideas in boxes
+<div class='well'>like this one</div>
+If all this is old hat for you, skip those guys.
+
+## Shape
 
 It is a bit difficult to say what the defining characteristics of the intuitive
-notion of a "shape" are. Here are some that seem reasonable:
+notion of a "shape" are. Here are some that seem reasonable to me:
 
-- It can be described by a collection of points in the plane
-- It shouldn't "go on forever", that is, I should be able to draw a box
+1. It can be described by a collection of points in the plane
+2. It shouldn't "go on forever", that is, I should be able to draw a box
   around it.
-- It shouldn't have any "discontinuities".
+3. It shouldn't have any "discontinuities" or little holes in it.
+
+That last point is the most vague of the three and probably the hardest
+to intuitively justify. We'll likely return to it later on. <!-- TODO: This -->
 
 Let's fix some notation. First off, $\mathbb{R}^2$ refers to the collection
 of points $(x, y)$, where $x$ and $y$ are real numbers.
 Think of it as specifying a point in the plane, as below.
 
-<div id='point-in-plane'></div>
+<div id='point-in-plane' class='illustration'></div>
 
+<div class='well aside'>
+  If $A$ and $B$ are sets (of numbers, say) people say $A$ is a subset of $B$
+  if every thing in $A$ is in $B$. (Aside: sets are conventionally given capital
+  letters as names). We write $A \subseteq B$ to indicate that $A$ is
+  a subset of $B$.
+
+  Note that if $A$ is a subset of $B$ then it need not be the case that $B$ contains
+  something that $A$ doesn't. That is we can have both $A = B$ and
+  $A \subseteq B$, since if $A = B$, then every thing in $A$ is in $B$.
+
+  Two final bits of notation: 
+
+  - If $a$ and $b$ are real numbers, then $[a, b]$ denotes the collection of
+    real numbers between (and including) $a$ and $b$.
+  - If $A$ and $B$ (note the capital letters) are sets, then $A \times B$
+    denotes the set of pairs $(x, y)$ where $x$ is something in $A$ and
+    $y$ is something in $B$.
+</div>
+
+Let's try and translate our intuitive properties of shapes into precise ones.
+
+1. A shape is a set of points $S$ (that is, $S \subseteq \mathbb{R}^2$) such that
+2. for some real numbers $x_{\text{left}}, x_{\text{right}}, y_{\text{low}}$
+   and $y_{\text{high}}$, we have that 
+   $S \subseteq [x_{\text{left}}, x_{\text{right}}] \times [y_{\text{low}}, y_{\text{high}}]$
+
+Let us stop to ponder 2 for a moment. It is saying that there is some rectangle
+for which every point in $S$ is in the rectangle. <!-- TODO: Elaborate -->
+
+The only remaining thing to translate is 3. To be completely honest, I can't

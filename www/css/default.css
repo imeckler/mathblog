@@ -54,3 +54,13 @@ div.info {
     font-size: 14px;
     font-style: italic;
 }
+
+.illustration {
+  text-align: center;
+  cursor: default;
+}
+
+.aside {
+  font-size: 10pt;
+}
+

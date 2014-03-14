@@ -5,102 +5,129 @@ let range start stop =
   let n = stop - start + 1 in
   Array.init n ~f:(fun i -> i + start)
 
-let rotating_ngon w h n =
-  let open Draw in
-  let w, h   = float_of_int w, float_of_int h in
-  let radius = min w h /. 4. in
-  let center = (w /. 2., h /. 2.) in
-  let p0     = (w /. 2., (h /. 2.) -. radius) in
-  let theta  = 360. /. float_of_int n in
+module Rotating_ngon = struct
+  let rotating_ngon w h n =
+    let open Draw in
+    let w, h   = float_of_int w, float_of_int h in
+    let radius = min w h /. 4. in
+    let center = (w /. 2., h /. 2.) in
+    let p0     = (w /. 2., (h /. 2.) -. radius) in
+    let theta  = 360. /. float_of_int n in
 
-  let ngon = 
-    let pts = 
-      Array.map (range 0 (n - 1)) ~f:(fun i -> let open Angle in
-        rotate ~about:center p0 (float_of_int i * of_degrees theta)
-      )
-    in let open Property in let open Frp.Behavior in
-    polygon (return pts) ~props:[|
-      Frp.Stream.ticks 30. 
-      |> Frp.scan ~init:Color.white ~f:(fun c _ -> Color.({c with b = c.b + 1}))
-      |> map ~f:fill;
-      return (stroke Color.black 2)
-    |]
-  in
-
-  let angle =
-    let open Animate.Sequence in
-    Array.map (range 1 n)
-      ~f:(fun i -> quadratic 1000. ~final:(float_of_int i *. theta) >> stay_for 500.)
-    |> Array.fold_right ~init:stay_forever ~f:(>>)
-    |> run ~init:0.
-    |> Frp.Behavior.map ~f:Angle.of_degrees
-  in
-
-  let arc = let open Frp.Behavior in
-    path
-      ~anchor:(let (x, y) = p0 in return (x, y -. 40.))
-      ~props:[|
-        return (Property.stroke Color.red 4);
-        return (Property.fill Color.({red with alpha = 0.}))
-      |]
-      (map angle ~f:(fun a -> [|
-        let a = min a (Angle.of_degrees 359.9999) in
-        let flag = if a < Angle.of_degrees 180. then `short else `long in
-        Segment.arc (Angle.of_degrees 90.) Angle.(of_degrees 90. + a) flag (radius +. 40.)
-      |]))
-  in
-
-  let labels = let open Frp.Behavior in
-    let theta = Angle.of_degrees theta in
-    let label_pos i = let open Draw.Point in
-      Frp.Behavior.map angle ~f:(fun a -> let open Angle in
-        rotate ~about:center (let (x,y) = p0 in (x, y -. 20.)) (a + (float_of_int i * theta))
-      )
+    let nice_blue = Color.of_rgb ~r:120 ~g:154 ~b:243 () in
+    let ngon color = 
+      let pts = 
+        Array.map (range 0 (n - 1)) ~f:(fun i -> let open Angle in
+          rotate ~about:center p0 (float_of_int i * of_degrees theta)
+        )
+      in let open Property in let open Frp.Behavior in
+      polygon (return pts) ~props:[| return (fill color) |]
     in
-    Array.map (range 1 n)
-      ~f:(fun i -> text (return (string_of_int i)) (label_pos (i - 1)))
-  in
-  pictures (
-    Array.append labels
-      [| transform ngon (Frp.Behavior.map angle ~f:(fun a -> Transform.Rotate (a, center)))
-      ;  arc
-      |]
-  )
 
+    let angle =
+      let open Animate.Sequence in
+      Array.map (range 1 n)
+        ~f:(fun i -> quadratic 1000. ~final:(float_of_int i *. theta) >> stay_for 500.)
+      |> Array.fold_right ~init:stay_forever ~f:(>>)
+      |> (fun x -> stay_for 500. >> x)
+      |> run ~init:0.
+      |> Frp.Behavior.map ~f:Angle.of_degrees
+    in
+
+    let rots = Frp.Behavior.map angle ~f:(fun a -> int_of_float (Angle.to_degrees a /. theta)) in
+
+    let arc = let open Frp.Behavior in
+      path
+        ~anchor:(let (x, y) = p0 in return (x, y -. 40.))
+        ~props:[|
+          return (Property.stroke Color.black 4);
+          return (Property.fill Color.none)
+        |]
+        (map angle ~f:(fun a -> [|
+          let a = min a (Angle.of_degrees 359.9999) in
+          let flag = if a < Angle.of_degrees 180. then `short else `long in
+          Segment.arc (Angle.of_degrees 90.) Angle.(of_degrees 90. + a) flag (radius +. 40.)
+        |]))
+    in
+
+    let labels = let open Frp.Behavior in
+      let theta = Angle.of_degrees theta in
+      let label_pos i = let open Draw.Point in
+        Frp.Behavior.map angle ~f:(fun a -> let open Angle in
+          rotate ~about:center (let (x,y) = p0 in (x, y -. 20.)) (a + (float_of_int i * theta))
+        )
+      in
+      Array.map (range 1 n)
+        ~f:(fun i -> text (return (string_of_int i)) (label_pos (i - 1)))
+    in
+    pictures (
+(*       Array.append labels *)
+        [| ngon (Color.of_rgb ~r:0xEE ~g:0xEE ~b:0xEE ())
+        ;  transform (ngon nice_blue) (Frp.Behavior.map angle ~f:(fun a -> Transform.Rotate (a, center)))
+        ;  arc
+        ;  text (Frp.Behavior.map rots ~f:string_of_int) (Frp.Behavior.return (w -. 10., 54.))
+            ~props:[|Frp.Behavior.return (Property.any ~name:"font-size" ~value:"40pt" ) 
+                   ; Frp.Behavior.return (Property.any ~name:"text-anchor" ~value:"end")
+                   |]
+        |]
+    )
+
+  let mk () =
+    let container = Option.value_exn (Jq.jq "#ngon") in
+    let open Widget in
+    create ~width:400 ~height:400 container (fun nb -> 
+      Draw.dynamic (Frp.Behavior.map nb ~f:(fun n -> 
+        if n = 2
+        then Frp.Behavior.(
+          Draw.text (return "Hit plus yo") (return (200.,200.))
+        )
+        else rotating_ngon 400 400 n
+      ))
+    )
+    +> Control.incr_decr ~bot:2 ~top:6 ()
+    |> run
+end
+
+let () = ignore (Rotating_ngon.mk ())
+
+(*
 let () =
   let svg = Jq.Dom.svg_node "svg" [| "width", "400"; "height", "600" |] in
-  Jq.Dom.append svg (fst (Draw.render (rotating_ngon 400 600 6)));
-  match Jq.to_dom_node (Jq.jq "#content") with
+  Jq.Dom.append svg (fst (Draw.render (rotating_ngon 400 400 4)));
+  match Option.bind (Jq.jq "#square") Jq.to_dom_node with
     | None -> print "hi"
     | Some t -> Jq.Dom.append t svg
 
+*)
 module Point_in_plane = struct
   let (init_x, init_y) = (50, 100)
 
   let point_in_plane () =
-    let container = Jq.jq "#point-in-plane" in
-    let w, h      = Jq.width container, Jq.height container in
+    let container = Option.value_exn (Jq.jq "#point-in-plane") in
+    let w, h      = 400., 400. in
     let open Draw in
-
     let plane_anim pt = let open Frp.Behavior in
       let props = [|
-          return (Property.stroke (Color.of_rgb ~r:0xEE ~g:0xEE ~b:0xEE ()) 2);
+          return (Property.stroke (Color.of_rgb ~r:0xAA ~g:0xAA ~b:0xAA ()) 2);
           return (Property.fill Color.none)
         |]
       in
       let x_tracker =
         path ~props ~anchor:(map pt ~f:(fun (x, y) -> (float_of_int x, 0.)))
-          (return [|Segment.line_to (0., float_of_int h)|])
+          (return [|Segment.line_to (0., h)|])
       in
       let y_tracker =
         path ~props ~anchor:(map pt ~f:(fun (x, y) -> (0., float_of_int y)))
-          (return [|Segment.line_to (float_of_int w, 0.)|])
+          (return [|Segment.line_to (w, 0.)|])
       in
       let circ = 
         circle ~props:[|return (Property.fill Color.black)|] (return 5.)
           (map ~f:(Arrow.both float_of_int) pt)
       in
-      pictures [| x_tracker; y_tracker; circ |]
+      let pt_text =
+        text (map pt ~f:(fun (x, y) -> Printf.sprintf "(%d, %d)" x (400 - y))) (return (10., h -. 40.))
+      in
+      pictures [| x_tracker; y_tracker; pt_text; circ|]
     in
     let open Widget in
     create ~width:400 ~height:400 container plane_anim
@@ -120,7 +147,7 @@ module Continuous_path = struct
     |]
 
   let mk () =
-    let container = Jq.jq "#pathanim" in
+    let container = Option.value_exn (Jq.jq "#pathanim") in
     let path_anim slider_val =
       let open Frp.Behavior in
       let open Draw in let open Point in let open Segment in
@@ -131,36 +158,29 @@ module Continuous_path = struct
         |]
         ~mask:(map slider_val ~f:(fun x -> (0., x ** 2.)))
         (return "M15.514,227.511c0,0-14.993-122.591,109.361-59.091 c124.356,63.501,157.872,22.049,125.238-49.389c-32.632-71.439-127.305-15.875-111.719,108.479 c15.586,124.355,246.658,35.278,246.658,35.278")
- (*     path
-        ~props:[|
-          return Property.(fill Color.({red with alpha = 0.}));
-          return Property.(stroke Color.black 2)
-        |]
-        ~anchor:(return (5., 5.))
-        ~mask:(map slider_val ~f:(fun x -> (0., x ** 2.)))
-        (return [| line_to (100., 100.); line_to (200., 100.) |])
-       |> fill   red *)
     in
     let open Widget in
     create ~width:400 ~height:400 container path_anim
-    +> Control.slider ""
+    +> Control.continuous_slider ""
     |> run
 end
 
 module Graph_split = struct
   let bowtie =
     let gph = Graph.empty () in
-    let ([|a;b;c;d;e|], gph') = Graph.add_nodes (Array.create ~len:5 Draw.Color.black) gph in
-    let open Graph.Change in
-    Graph.change [|
-      Add_arc (a, b, ());
-      Add_arc (b, c, ());
-      Add_arc (c, a, ());
+    match Graph.add_nodes (Array.create ~len:5 Draw.Color.black) gph with
+    | ([|a;b;c;d;e|], gph') ->
+      let open Graph.Change in
+      Graph.change [|
+        Add_arc (a, b, ());
+        Add_arc (b, c, ());
+        Add_arc (c, a, ());
 
-      Add_arc (c, d, ());
-      Add_arc (d, e, ());
-      Add_arc (e, c, ());
-    |] gph'
+        Add_arc (c, d, ());
+        Add_arc (d, e, ());
+        Add_arc (e, c, ());
+      |] gph'
+    | _ -> failwith "Big booboo in bowtie"
 
   module Vector = struct
     let scale c (x, y) = (c *. x, c *. y)
@@ -188,7 +208,7 @@ module Graph_split = struct
     -. c *. (atan ((b -. h) /. (a -. p)) -. atan (b /. (a -. p)))
 
   let side_force_y w h c p (a, b) =
-    let f y = log (a**2. -. (2. *. a *. p) +. b**2. -. (2. *. b *. y) +. p**2. +. y**2.) in
+(*     let f y = log (a**2. -. (2. *. a *. p) +. b**2. -. (2. *. b *. y) +. p**2. +. y**2.) in *)
     let f y = log ((a -. p)**2. +. (b -. y)**2.) in
     -. (c /. 2.) *. (f h -. f 0.)
 
@@ -242,7 +262,7 @@ module Graph_split = struct
       let svg        = Jq.Dom.svg_node "svg" [| "width", "400"; "height", "600" |] in
       Jq.Dom.append svg elt;
       Frp.Stream.(iter (ticks 30.) ~f:(fun _ -> update ())) |> ignore;
-      match Jq.to_dom_node (Jq.jq "#graphanim") with
+      match Option.bind (Jq.jq "#graphanim") Jq.to_dom_node with
         | None   -> print "ho"
         | Some t -> Jq.Dom.append t svg
     end

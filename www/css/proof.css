@@ -10,3 +10,14 @@
   background-color:green;
 }
 
+.proof-canvas {
+  border: 1px solid black;
+}
+
+/* Probably should have a class for cp svg nodes */
+text {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select:none;
+}

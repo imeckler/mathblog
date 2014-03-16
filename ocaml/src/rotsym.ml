@@ -49,28 +49,15 @@ module Rotating_ngon = struct
           Segment.arc (Angle.of_degrees 90.) Angle.(of_degrees 90. + a) flag (radius +. 40.)
         |]))
     in
-
-    let labels = let open Frp.Behavior in
-      let theta = Angle.of_degrees theta in
-      let label_pos i = let open Draw.Point in
-        Frp.Behavior.map angle ~f:(fun a -> let open Angle in
-          rotate ~about:center (let (x,y) = p0 in (x, y -. 20.)) (a + (float_of_int i * theta))
-        )
-      in
-      Array.map (range 1 n)
-        ~f:(fun i -> text (return (string_of_int i)) (label_pos (i - 1)))
-    in
-    pictures (
-(*       Array.append labels *)
-        [| ngon (Color.of_rgb ~r:0xEE ~g:0xEE ~b:0xEE ())
-        ;  transform (ngon nice_blue) (Frp.Behavior.map angle ~f:(fun a -> Transform.Rotate (a, center)))
-        ;  arc
-        ;  text (Frp.Behavior.map rots ~f:string_of_int) (Frp.Behavior.return (w -. 10., 54.))
-            ~props:[|Frp.Behavior.return (Property.any ~name:"font-size" ~value:"40pt" ) 
-                   ; Frp.Behavior.return (Property.any ~name:"text-anchor" ~value:"end")
-                   |]
-        |]
-    )
+    pictures
+      [| ngon (Color.of_rgb ~r:0xEE ~g:0xEE ~b:0xEE ())
+      ;  transform (ngon nice_blue) (Frp.Behavior.map angle ~f:(fun a -> Transform.Rotate (a, center)))
+      ;  arc
+      ;  text (Frp.Behavior.map rots ~f:string_of_int) (Frp.Behavior.return (w -. 10., 54.))
+          ~props:[|Frp.Behavior.return (Property.any ~name:"font-size" ~value:"40pt" ) 
+                  ; Frp.Behavior.return (Property.any ~name:"text-anchor" ~value:"end")
+                  |]
+      |]
 
   let mk () =
     let container = Option.value_exn (Jq.jq "#ngon") in
@@ -125,7 +112,8 @@ module Point_in_plane = struct
           (map ~f:(Arrow.both float_of_int) pt)
       in
       let pt_text =
-        text (map pt ~f:(fun (x, y) -> Printf.sprintf "(%d, %d)" x (400 - y))) (return (10., h -. 40.))
+        text (map pt ~f:(fun (x, y) -> Printf.sprintf "(%d, %d)" x (400 - y))) 
+          (return (10., h -. 40.))
       in
       pictures [| x_tracker; y_tracker; pt_text; circ|]
     in
@@ -212,6 +200,8 @@ module Graph_split = struct
     let f y = log ((a -. p)**2. +. (b -. y)**2.) in
     -. (c /. 2.) *. (f h -. f 0.)
 
+  let horiz_force_x, horiz_force_y = side_force_y, side_force_x
+
   let draw_graph g =
     let posg = Graph.map_nodes g ~f:(fun _ -> Frp.Behavior.return (1.,1.)) in
     let get_pos v = Frp.Behavior.peek (Graph.get_exn v posg) in
@@ -233,11 +223,12 @@ module Graph_split = struct
           )
         in
         Frp.Behavior.trigger posb1 (
-          Vector.add charge_acc (
-          Vector.add (spring_accels pos1 (Graph.successors_exn v1 posg))
-                     (spring_accels pos1 (Graph.predecessors_exn v1 posg))
-          )
-        )
+          Array.fold ~init:(0.,0.) ~f:Vector.add [|
+            charge_acc;
+            spring_accels pos1 (Graph.successors_exn v1 posg);
+            spring_accels pos1 (Graph.predecessors_exn v1 posg);
+          |]
+        );
       )
     in
 
@@ -268,7 +259,7 @@ module Graph_split = struct
     end
 end
 
-let () = Graph_split.(draw_graph bowtie)
+(* let () = Graph_split.(draw_graph bowtie) *)
 
 module Compactness = struct
   let w, h = 400., 400.
@@ -277,8 +268,8 @@ module Compactness = struct
     let circ = circle (return (w /. 3.)) (return (w /. 2., h/. 2.))
       ~props:[|return (Property.stroke Color.black 2)|] 
     in
-    ()
+    circ
 end
 
-(* let _ = Continuous_path.mk () *)
+let _ = Continuous_path.mk ()
 

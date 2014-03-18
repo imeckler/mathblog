@@ -79,29 +79,9 @@ module Free_group = struct
 
   let simplify =
     let rec loop z = match z with
-      | ([], [])       -> None
-      | (ls, [])       -> Some (List.rev ls)
-      | ([], r::rs)    -> loop ([r], rs)
+      | (ls, []) -> List.rev ls
+      | ([], r::rs) -> loop ([r], rs)
       | (l::ls, r::rs) -> if inv_one l = r then loop (ls, rs) else loop (r::l::ls, rs)
-    (*
-    let rec loop z = match z with
-      | ([], x, []) -> Some [x]
-      | ([], x, [r]) ->
-          if inv_one x = r then None else Some [x; r]
-      | ([], x, r1::r2::rs) ->
-          if inv_one x = r1
-          then loop ([], r2, rs)
-          else loop ([r1; x], r2, rs)
-
-      | ([l], x, r::rs) ->
-          if inv_one x = l
-          then loop ([], r, rs)
-          else loop ([x; l], r, rs)
-
-      | (l::ls, x, [])  -> Some (Zipper.rebuild z)
-      | (l1::l2::ls, x, r::rs) ->
-          if inv_one x = l1 then loop (ls, l2, r::rs) else loop (x::l1::l2::ls, r, rs)
-*)
     in fun xs -> loop ([], xs)
 
   let unelt = function

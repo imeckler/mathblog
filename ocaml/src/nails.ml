@@ -77,12 +77,11 @@ module Free_group = struct
 
   let inv = List.rev_map ~f:inv_one
 
-  let simplify =
-    let rec loop z = match z with
-      | (ls, []) -> List.rev ls
-      | ([], r::rs) -> loop ([r], rs)
-      | (l::ls, r::rs) -> if inv_one l = r then loop (ls, rs) else loop (r::l::ls, rs)
-    in fun xs -> loop ([], xs)
+  let simplify xs =
+    List.fold_left xs ~init:[] ~f:(fun acc x -> match acc with
+      | []     -> [x]
+      | (l::ls) -> if inv_one l = x then ls else x::acc
+    ) |> List.rev
 
   let unelt = function
     | `In x | `Inv x -> x

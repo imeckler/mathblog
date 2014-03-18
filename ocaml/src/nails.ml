@@ -78,7 +78,12 @@ module Free_group = struct
   let inv = List.rev_map ~f:inv_one
 
   let simplify =
-
+    let rec loop z = match z with
+      | ([], [])       -> None
+      | (ls, [])       -> Some (List.rev ls)
+      | ([], r::rs)    -> loop ([r], rs)
+      | (l::ls, r::rs) -> if inv_one l = r then loop (ls, rs) else loop (r::l::ls, rs)
+    (*
     let rec loop z = match z with
       | ([], x, []) -> Some [x]
       | ([], x, [r]) ->
@@ -89,13 +94,15 @@ module Free_group = struct
           else loop ([r1; x], r2, rs)
 
       | ([l], x, r::rs) ->
-          if inv_one x = l then loop ([], r, rs) else loop ([x; l], r, rs)
+          if inv_one x = l
+          then loop ([], r, rs)
+          else loop ([x; l], r, rs)
 
       | (l::ls, x, [])  -> Some (Zipper.rebuild z)
       | (l1::l2::ls, x, r::rs) ->
           if inv_one x = l1 then loop (ls, l2, r::rs) else loop (x::l1::l2::ls, r, rs)
-
-    in fun xs -> loop (Zipper.examine 0 xs)
+*)
+    in fun xs -> loop ([], xs)
 
   let unelt = function
     | `In x | `Inv x -> x
@@ -107,12 +114,31 @@ module Free_group = struct
   end
 end
 
-let interp nails_y g =
-  let init_pos = (0., nails_y +. 20.) in
+let float_of_int = Float.of_int
+
+let interp nails_sep nails_x nails_y g =
+  let init_pos = (nails_x, nails_y +. 20.) in
+  let nail_x n = nails_x +. (float_of_int n *. nails_sep) in
+  let twixt n m =
+    (nails_x +. nails_sep *. (float_of_int (n + m) /. 2.), nails_y)
+  in
+  (* `Inv is clockwise, `In is counterclockwise *)
   Free_group.to_list g
-  |> List.fold_left ~init:(init_pos, []) ~f:(fun ((curr_x,curr_y),p) e -> match e with
-    | `Inv n -> (* go from where you are to between the n and n+ 1 place, eg *)
+  |> List.fold_left ~init:[init_pos] ~f:(fun path e -> match e with
+    | `Inv n -> (* go from where you are to between the n - 1 and n place, eg *)
+      let p1 = twixt (n - 1) n in
+      let p2 = (nail_x n, nails_y -. 10.) in
+      let (x3, y3) as p3 = twixt n (n + 1) in
+      let p4 = (x3, y3 +. 10.) in
+      p4 :: p3 :: p2 :: p1 :: path
+    | `In n ->
+      let p1 = twixt n (n + 1) in
+      let p2 = (nail_x n, nails_y -. 10.) in
+      let (x3, y3) as p3 = twixt (n - 1) n in
+      let p4 = (x3, y3 +. 10.) in
+      p4 :: p3 :: p2 :: p1 :: path
   )
+  |> List.rev
 
 let split_array xs =
   let n = Array.length xs in

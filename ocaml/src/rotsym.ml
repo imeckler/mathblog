@@ -5,6 +5,8 @@ let range start stop =
   let n = stop - start + 1 in
   Array.init n ~f:(fun i -> i + start)
 
+let nice_blue = Draw.Color.of_rgb ~r:120 ~g:154 ~b:243 ()
+
 module Rotating_ngon = struct
   let rotating_ngon w h n =
     let open Draw in
@@ -14,7 +16,6 @@ module Rotating_ngon = struct
     let p0     = (w /. 2., (h /. 2.) -. radius) in
     let theta  = 360. /. float_of_int n in
 
-    let nice_blue = Color.of_rgb ~r:120 ~g:154 ~b:243 () in
     let ngon color = 
       let pts = 
         Array.map (range 0 (n - 1)) ~f:(fun i -> let open Angle in
@@ -100,12 +101,18 @@ module Point_in_plane = struct
         |]
       in
       let x_tracker =
-        path ~props ~anchor:(map pt ~f:(fun (x, y) -> (float_of_int x, 0.)))
-          (return [|Segment.line_to (0., h)|])
+        path ~props ~anchor:(return (0.,0.))
+          (map pt ~f:(fun (x, y) -> let x' = float_of_int x in [|
+            Segment.move_to (x', 0.);
+            Segment.line_to (x', h)
+          |]))
       in
       let y_tracker =
-        path ~props ~anchor:(map pt ~f:(fun (x, y) -> (0., float_of_int y)))
-          (return [|Segment.line_to (w, 0.)|])
+        path ~props ~anchor:(return (0.,0.))
+          (map pt ~f:(fun (x, y) -> let y' = float_of_int y in [|
+            Segment.move_to (0., y');
+            Segment.line_to (w, y')
+          |]))
       in
       let circ = 
         circle ~props:[|return (Property.fill Color.black)|] (return 5.)
@@ -153,123 +160,112 @@ module Continuous_path = struct
     |> run
 end
 
-module Graph_split = struct
-  let bowtie =
-    let gph = Graph.empty () in
-    match Graph.add_nodes (Array.create ~len:5 Draw.Color.black) gph with
-    | ([|a;b;c;d;e|], gph') ->
-      let open Graph.Change in
-      Graph.change [|
-        Add_arc (a, b, ());
-        Add_arc (b, c, ());
-        Add_arc (c, a, ());
+(* let () = Graph_split.(draw_graph bowtie) *)
 
-        Add_arc (c, d, ());
-        Add_arc (d, e, ());
-        Add_arc (e, c, ());
-      |] gph'
-    | _ -> failwith "Big booboo in bowtie"
+module Angular_distance = struct
+  let w, h = 400., 400.
 
-  module Vector = struct
-    let scale c (x, y) = (c *. x, c *. y)
+  let pi = acos (-1.)
 
-    let add (x1, y1) (x2, y2) = (x1 +. x2, y1 +. y2)
 
-    let sub (x1, y1) (x2, y2) = (x1 -. x2, y1 -. y2)
+  let trace r = print r; r
 
-    let norm (x, y) = sqrt (x ** 2. +. y ** 2.)
-  end
+  let mk () = let open Draw in
 
-  let charge_accel p1 p2 =
-    if p1 = p2
-    then (1., 1.) 
-    else
-      let charge_constant = 1. in
-      let d = Vector.sub p2 p1 in
-      Vector.scale (charge_constant /. (Vector.norm d ** 2.)) d
-
-  let spring_accel p1 p2 : (float * float) =
-    let spring_constant = 1. in
-    Vector.scale spring_constant (Vector.sub p2 p1)
-
-  let side_force_x w h c p (a, b) =
-    -. c *. (atan ((b -. h) /. (a -. p)) -. atan (b /. (a -. p)))
-
-  let side_force_y w h c p (a, b) =
-(*     let f y = log (a**2. -. (2. *. a *. p) +. b**2. -. (2. *. b *. y) +. p**2. +. y**2.) in *)
-    let f y = log ((a -. p)**2. +. (b -. y)**2.) in
-    -. (c /. 2.) *. (f h -. f 0.)
-
-  let horiz_force_x, horiz_force_y = side_force_y, side_force_x
-
-  let draw_graph g =
-    let posg = Graph.map_nodes g ~f:(fun _ -> Frp.Behavior.return (1.,1.)) in
-    let get_pos v = Frp.Behavior.peek (Graph.get_exn v posg) in
-
-    let spring_accels p0 vs =
-      Array.fold vs ~init:(0., 0.) ~f:(fun acc (v2, _) -> 
-        Vector.add acc (spring_accel p0 (get_pos v2))
-      )
+    let container           = Option.value_exn (Jq.jq "#angulardistance") in
+    let (cx, cy as center)  = (w /. 2., h /. 2.) in
+    let radius              = min w h /. 3. in
+    let pt_angle pt = Frp.Behavior.map pt ~f:(Angle.about ~center) in
+    let clamp_to_circle angle =
+      Frp.Behavior.map angle ~f:(fun a -> 
+        (cx +. radius *. Angle.cos a, cy -. radius *. Angle.sin a))
     in
+    let drag_point init name =
+      Frp.scan (Name.drags name) ~init ~f:(fun (x, y) (dx, dy) ->
+        (x +. float_of_int dx, y +. float_of_int dy))
+    in
+    let mk_anim = let open Frp.Behavior in 
+      let circ      =
+        circle (return radius) (return center) ~props:[|
+          return (Property.fill (Color.none));
+          return (Property.stroke Color.black 2)
+        |]
+      in
+      let pt_1_name, pt_2_name = Name.create (), Name.create () in
+      let pt_1_init, pt_2_init = (100., 100.), (100., 200.) in
 
-    let update () =
-      Graph.iter_nodes posg ~f:(fun v1 posb1 ->
-        let pos1 = Frp.Behavior.peek posb1 in
-        let charge_acc = 
-          Graph.fold_nodes posg ~init:(0., 0.) ~f:(fun acc v2 posb2 ->
-            if v1 <> v2
-            then Vector.add acc (charge_accel pos1 (Frp.Behavior.peek posb2))
-            else acc
-          )
+      let pt_1_angle = pt_angle (drag_point pt_1_init pt_1_name) in
+      let pt_2_angle = pt_angle (drag_point pt_2_init pt_2_name) in
+
+      let pt_1 = clamp_to_circle pt_1_angle in
+      let pt_2 = clamp_to_circle pt_2_angle in
+
+      let arc = let open Frp.Behavior.Infix in
+        (fun p1 p2 a1 a2 ->
+          let a1, a2 = Angle.(to_degrees a1, to_degrees a2) in 
+          let sweep =
+            if   (a2 < a1 && abs_float (a1 -. (360. +. a2)) < abs_float (a1 -. a2))
+              || (a1 < a2 && abs_float (a1 -. a2) < abs_float (a1 -. (a2 -. 360.)))
+            then `pos
+            else `neg
+          in
+          [| Segment.line_to p1
+          ;  Segment.arc_to p2 `short sweep radius
+          ;  Segment.line_to center
+          |])
+        <$> pt_1 <*> pt_2 <*> pt_1_angle <*> pt_2_angle
+      in
+      let pt_1_circ = circle ~name:pt_1_name (return 10.) pt_1
+        ~props:[|return (Property.fill (Color.blue))|]
+      in
+      let pt_2_circ = circle ~name:pt_2_name (return 10.) pt_2
+      in
+      let label =
+        let adist a1 a2 = let open Angle in let open Infix in
+          min (abs_float (a1 -. a2))
+              (360. -. abs_float (a1 -. a2))
         in
-        Frp.Behavior.trigger posb1 (
-          Array.fold ~init:(0.,0.) ~f:Vector.add [|
-            charge_acc;
-            spring_accels pos1 (Graph.successors_exn v1 posg);
-            spring_accels pos1 (Graph.predecessors_exn v1 posg);
-          |]
-        );
-      )
-    in
+        text 
+          (zip_with ~f:(fun a1 a2 ->
+              Printf.sprintf "%.3f" Angle.(adist (to_degrees a1) (to_degrees a2)))
+            pt_1_angle pt_2_angle)
+          (return (0., 400.))
+      in
+      pictures [|
+        circ;
+        label;
+        path ~anchor:(return center) ~props:[|
+          return (Property.fill nice_blue); 
+        |] arc; 
+        pt_1_circ; pt_2_circ
+      |]
 
-    let drawing = let open Draw in
-      let circs = 
-        Graph.fold_nodes posg ~init:[] ~f:(fun cs v pos_v ->
-          circle (Frp.Behavior.return 10.) pos_v
-          :: cs
-        ) |> Array.of_list
-      in
-      let edges =
-        Graph.fold_arcs posg ~init:[] ~f:(fun es v1 v2 _ ->
-          path ~anchor:(Graph.get_exn v1 posg)
-            (Frp.Behavior.map (Graph.get_exn v2 posg) ~f:(fun p -> [|Segment.move_to p|]))
-          :: es
-        ) |> Array.of_list
-      in
-      pictures (Array.append circs edges)
-    in
-    begin
-      let (elt, sub) = Draw.render drawing in
-      let svg        = Jq.Dom.svg_node "svg" [| "width", "400"; "height", "600" |] in
-      Jq.Dom.append svg elt;
-      Frp.Stream.(iter (ticks 30.) ~f:(fun _ -> update ())) |> ignore;
-      match Option.bind (Jq.jq "#graphanim") Jq.to_dom_node with
-        | None   -> print "ho"
-        | Some t -> Jq.Dom.append t svg
-    end
+    in let open Widget in
+    create ~width:400 ~height:400 container mk_anim
+    |> run
 end
 
-(* let () = Graph_split.(draw_graph bowtie) *)
+let _ = Angular_distance.mk ()
 
 module Compactness = struct
   let w, h = 400., 400.
 
-  let mk () = let open Draw in let open Frp.Behavior in
-    let circ = circle (return (w /. 3.)) (return (w /. 2., h/. 2.))
-      ~props:[|return (Property.stroke Color.black 2)|] 
+  let mk () = 
+    let container = Option.value_exn (Jq.jq "#compactness") in
+    let mk_anim =
+      let open Draw in let open Frp.Behavior in
+      let circ = circle (return (w /. 3.)) (return (w /. 2., h/. 2.))
+        ~props:[|return (Property.stroke Color.black 2)|] 
+      in
+      circ
     in
-    circ
+    let open Widget in
+    create ~width:400 ~height:400 container mk_anim
+    |> run
+
 end
+
+let _ = Compactness.mk ()
 
 let _ = Continuous_path.mk ()
 

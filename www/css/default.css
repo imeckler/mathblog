@@ -60,6 +60,10 @@ div.info {
   cursor: default;
 }
 
+svg.proof-canvas {
+  background-color:white;
+}
+
 .aside {
   font-size: 10pt;
 }

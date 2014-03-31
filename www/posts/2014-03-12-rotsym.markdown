@@ -81,7 +81,7 @@ Let's try and translate our intuitive properties of shapes into precise ones.
    $S \subseteq [x_{\text{left}}, x_{\text{right}}] \times [y_{\text{low}}, y_{\text{high}}]$
 
 <div class='well'>
-  Let us stop to think about what 2 says for a moment. What is
+  Let's stop to think about what 2 says for a moment. What is
   $[x_{\text{left}}, x_{\text{right}}] \times [y_{\text{low}}, y_{\text{high}}]$?
   It is the set of points $(x, y)$ with $x$ between $x_{\text{left}}$ and $x_{\text{right}}$
   and with $y$ between $y_{\text{low}}$ and $y_{\text{high}}$. Such a set of
@@ -110,6 +110,29 @@ One thing to notice about $A$ is that every point in $A$ lies on the same
 circle centered at the origin (i.e., centered at the point $(0,0)$).
 This is because $p$ lies on some circle and by rotating $p$, we stay on
 that circle.
+
+I claim that there are points in $A$ which are arbitrarily close together.
+Put another way, there is no smallest distance between points of $A$. Put
+a third way, for any distance $\delta > 0$, there are some points 
+$x, y \in A$ such that the distance between $x$ and $y$ is less than $\delta$.
+Since these points lie on the same circle, we can instead show that there
+is no smallest angular distance between points in $A$.
+
+<div class='well'>
+  The **angular distance** between two points lying
+  on the same circle will be the shortest angle between them on that circle, as below.
+
+  <div id="angulardistance" class="illustration"></div>
+</div>
+
+Suppose this were not the case. Then there would be a minimum angular distance between
+points of $A$. That is, there would be some $\delta$ such that
+for any $x, y \in A$, the angular distance between $x$ and $y$ is at least $\delta$.
+
+Since $A$ 
+
+Compactness
+<div id="compactness" class="illustration"></div>
 
 <div id="pathanim" class="illustration"></div>
 

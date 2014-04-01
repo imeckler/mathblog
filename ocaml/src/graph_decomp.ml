@@ -64,6 +64,28 @@ let binary_graph = let open Graph.Builder in let open Monad_infix in let open Dr
   end
   |> run (Graph.empty ())
 
+let isolated_vertices n = 
+  Graph.Builder.(run (Graph.empty ())
+    (all (List.init n ~f:(fun _ -> new_node Draw.Color.black))))
+
+let rec combinations n l =
+  if n = 0
+  then [[]]
+  else match l with
+  | [] -> []
+  | x :: xs ->
+    List.map ~f:(fun c -> x :: c) (combinations (n - 1) xs)
+    @ combinations n xs
+
+let complete_graph n = let open Graph.Builder in let open Monad_infix in
+  begin
+  all (List.init n ~f:(fun _ -> new_node Draw.Color.black)) >>= fun vs ->
+  all_ignore
+    (List.map ~f:(function [u; v] -> add_arc u v () | _ -> assert false)
+      (combinations 2 vs))
+  end
+  |> run (Graph.empty ())
+
 let bowtie =
   let gph = Graph.empty () in
   match Graph.add_nodes (Array.create ~len:5 Draw.Color.black) gph with
@@ -80,6 +102,49 @@ let bowtie =
     |] gph'
   | _ -> failwith "Big booboo in bowtie"
 
+(* TODO: This could [run] on g1 if Graph.Builder.node were not abstract *)
+let glue_at v1 v2 g1 g2 = let open Graph.Builder in let open Monad_infix in
+  let copy_arcs g ps (v, v') =
+    all_ignore (List.map (Array.to_list (Graph.successors_exn v g)) ~f:(fun (u, e) ->
+      add_arc v' (List.Assoc.find_exn ps u) e))
+  in
+  begin
+    new_node (Graph.get_exn v1 g1)
+    >>= fun v1' ->
+    all (Graph.fold_nodes g1 ~init:[] ~f:(fun mvs v x ->
+          if v <> v1 then (new_node x >>| fun v' -> (v, v')) :: mvs else mvs))
+    >>= fun ps1 -> let ps1 = (v1, v1') :: ps1 in
+    all_ignore (List.map ps1 ~f:(copy_arcs g1 ps1))
+    >>= fun _ ->
+    all (Graph.fold_nodes g2 ~init:[] ~f:(fun mvs v x ->
+          if v <> v2 then (new_node x >>| fun v' -> (v, v')) :: mvs else mvs)) 
+    >>= fun ps2 -> let ps2 = (v2, v1') :: ps2 in
+    all_ignore (List.map ps2 ~f:(copy_arcs g2 ps2))
+  end |> run (Graph.empty ())
+
+(*
+all_ignore (List.map (Array.to_list (Graph.successors_exn v g1)) ~f:(fun (u, e) ->
+      let u' = List.Assoc.find_exn ps1 u in add_arc v' u' e))))
+*)
+
+let cycle = let open Graph.Builder in let open Monad_infix in let open Draw in
+  let rec make_edges v0 = function
+    | []           -> return ()
+    | [v]          -> add_arc v v0 ()
+    | (v1::v2::vs) -> add_arc v1 v2 () >>= fun _ -> make_edges v0 (v2::vs)
+  in
+  fun n ->
+  if n < 0 then failwith "cycle: n < 0"
+  else begin
+    if n = 0
+    then return ()
+    else
+      new_node Color.black                     >>= fun v0 ->
+      replicate (n - 1) (new_node Color.black) >>= fun vs ->
+      make_edges v0 (v0::vs)
+  end |> run (Graph.empty ())
+
+
 module Vector = struct
   let scale c (x, y) = (c *. x, c *. y)
 
@@ -90,41 +155,43 @@ module Vector = struct
   let norm (x, y) = sqrt (x ** 2. +. y ** 2.)
 end
 
-let charge_constant = 1.
+let charge_constant = 0.01
 
 let charge_accel p1 p2 =
   let d = Vector.sub p2 p1 in
   let c = (Vector.norm d ** 2.) in
   if c = 0.
   then (100., 100.)
-  else Vector.scale (charge_constant /. c) d
+  else Vector.scale (-. charge_constant /. c) d
 
 let spring_accel p1 p2 : (float * float) =
-  let spring_constant = 0.01 in
+  let spring_constant = 0.000001 in
   Vector.scale spring_constant (Vector.sub p2 p1)
 
-let side_force_x h c p (a, b) =
-  c *. (atan (b /. (a -. p)) -. atan ((b -. h) /. (a -. p)))
+let side_force_constant = 0.00001
 
-let side_force_y h c p (a, b) =
+let side_force_x h p (a, b) =
+  side_force_constant *. (atan (b /. (a -. p)) -. atan ((b -. h) /. (a -. p)))
+
+let side_force_y h p (a, b) =
 (*     let f y = log (a**2. -. (2. *. a *. p) +. b**2. -. (2. *. b *. y) +. p**2. +. y**2.) in *)
   let f y = log ((a -. p) ** 2. +. (b -. y) ** 2.) in
-  -. (c /. 2.) *. (f h -. f 0.)
+  -. (side_force_constant /. 2.) *. (f h -. f 0.)
 
-let side_force h c p pt = (side_force_x h c p pt, side_force_y h c p pt)
+let side_force h p pt = (side_force_x h p pt, side_force_y h p pt)
 
-let horiz_force_x w c p (a, b) =
+let horiz_force_x w p (a, b) =
   let f x = log ((a -. x) ** 2. +. (b -. p) ** 2.) in
-  (c /. 2.) *. (f 0. -. f w)
+  (side_force_constant /. 2.) *. (f 0. -. f w)
 
-let horiz_force_y w c p (a, b) =
-  c *. (atan (a /. (b -. p)) -. atan ((a -. w) /. (b -. p)))
+let horiz_force_y w p (a, b) =
+  side_force_constant *. (atan (a /. (b -. p)) -. atan ((a -. w) /. (b -. p)))
 
 (*
   let f x = atan2 (a -. x) (b -. p) in
   c *. (f 0. -. f w)
 *)
-let horiz_force w c p pt = (horiz_force_x w c p pt, horiz_force_y w c p pt)
+let horiz_force w p pt = (horiz_force_x w p pt, horiz_force_y w p pt)
 
 let friction = Vector.scale (-0.001)
 
@@ -142,8 +209,8 @@ let draw_graph g =
       Vector.add acc (spring_accel p0 (get_pos v2))
     )
   in
-  (* change this to be a fold over the delta stream *)
 
+  (* TODO: change this to be a fold over the delta stream *)
   let update delta =
     let delta = Time.Span.to_ms delta in
     Graph.iter_nodes data_g ~f:(fun v1 (posb1, velb1) ->
@@ -156,17 +223,17 @@ let draw_graph g =
         )
       in
       let forces = [|
-          charge_acc;
-          spring_accels pos1 (Graph.successors_exn v1 data_g);
-          spring_accels pos1 (Graph.predecessors_exn v1 data_g);
-          (side_force_x h' 1. 0. pos1, 0.);
-          (side_force_x h' 1. w' pos1, 0.);
-          (0. , horiz_force_y w' 1. 0. pos1);
-          (0., horiz_force_y w' 1. h' pos1);
-          friction (Frp.Behavior.peek velb1)
-        |]
+        charge_acc;
+        spring_accels pos1 (Graph.successors_exn v1 data_g);
+        spring_accels pos1 (Graph.predecessors_exn v1 data_g);
+        (side_force_x h' 0. pos1, 0.);
+        (side_force_x h' w' pos1, 0.);
+        (0. , horiz_force_y w' 0. pos1);
+        (0., horiz_force_y w' h' pos1);
+        friction (Frp.Behavior.peek velb1)
+      |]
       in
-      let force = Array.fold ~init:(0., 0.) ~f:Vector.add forces |> Vector.scale 0.00001 in
+      let force = Array.fold ~init:(0., 0.) ~f:Vector.add forces in
       let open Frp.Behavior in
       let curr_vel = peek velb1 in
       let pos' = Vector.add (peek posb1) (Vector.scale delta curr_vel) |> clip_pos w' h' in 
@@ -207,5 +274,5 @@ let draw_graph g =
     Frp.Stream.(iter (deltas 30.) ~f:update) |> ignore;
   end
 
-let () = draw_graph bowtie
+let () = draw_graph (cycle 5)
 

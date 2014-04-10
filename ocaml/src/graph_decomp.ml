@@ -144,17 +144,6 @@ let cycle = let open Graph.Builder in let open Monad_infix in let open Draw in
       make_edges v0 (v0::vs)
   end |> run (Graph.empty ())
 
-
-module Vector = struct
-  let scale c (x, y) = (c *. x, c *. y)
-
-  let add (x1, y1) (x2, y2) = (x1 +. x2, y1 +. y2)
-
-  let sub (x1, y1) (x2, y2) = (x1 -. x2, y1 -. y2)
-
-  let norm (x, y) = sqrt (x ** 2. +. y ** 2.)
-end
-
 let charge_constant = 0.01
 
 let charge_accel p1 p2 =
